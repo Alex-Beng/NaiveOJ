@@ -48,12 +48,21 @@ class User(UserMixin, db.Model):
             return
         return User.query.get(id)
 
-
+# 一次提交
 class Post(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    body = db.Column(db.String(140))
+    code = db.Column(db.String(40000))
     timestamp = db.Column(db.DateTime, index=True, default=datetime.utcnow)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
-
+    # 评测结果
+    score = db.Column(db.Integer)
+    result = db.Column(db.String(1000))
+    
     def __repr__(self):
-        return '<Post {}>'.format(self.body)
+        return '<{}\'s Post at {}>'.format(self.id, self.timestamp)
+
+    # judge code
+    def judge_code(self):
+        self.score = 100
+        self.result = "通过了0个点，总计0个点"
+        return 

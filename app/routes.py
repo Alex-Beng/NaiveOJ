@@ -1,11 +1,12 @@
-from flask import render_template, flash, redirect, url_for, request
+from flask import render_template, flash, redirect, url_for, request, send_from_directory, abort
 from app import app, db
-from app.forms import LoginForm, RegistrationForm, ResetPasswordRequestForm, ResetPasswordForm
-from app.models import User
+from app.forms import LoginForm, RegistrationForm, ResetPasswordRequestForm, ResetPasswordForm, SubmitForm
+from app.models import User, Post
 from app.email import send_password_reset_email
 from flask_login import current_user, login_user, logout_user, login_required
 from werkzeug.urls import url_parse
 from datetime import datetime
+import os
 
 
 @app.before_request
@@ -17,21 +18,10 @@ def before_request():
 
 @app.route('/')
 @app.route('/index')
-@login_required # 用来限定需要登录的页面
+# @login_required # 用来限定需要登录的页面
 def index():
-    user = {'username': 'Miguel'}
-    posts = [
-        {
-            'author': {'username': 'John'},
-            'body': 'Beautiful day in Portland!'
-        },
-        {
-            'author': {'username': 'Susan'},
-            'body': 'The Avengers movie was so cool!'
-        }
-    ]
 
-    return render_template('index.html', title='Home', posts=posts)
+    return render_template('index.html', title='Home')
 
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -44,7 +34,7 @@ def login():
         if user is None or not user.check_password(form.password.data):
             flash('Invalid username or password')
             return redirect('/login')
-        login_user(user, remember=form.remember_me.data)
+        login_user(user)
         next_page = request.args.get('next')
         if not next_page or url_parse(next_page).netloc != '':
             next_page = '/index'
@@ -75,10 +65,9 @@ def register():
 @login_required
 def user(username):
     user = User.query.filter_by(username=username).first_or_404()
-    posts = [
-        {'author': user, 'body': 'Test post #1'},
-        {'author': user, 'body': 'Test post #2'}
-    ]
+
+    # query posts
+    posts = Post.query.join(User, User.id==Post.user_id).filter(User.username==current_user.username).all()
     return render_template('user.html', user=user, posts=posts)
 
 
@@ -110,3 +99,34 @@ def reset_password(token):
         flash('Your password has been reset.')
         return redirect(url_for('login'))
     return render_template('reset_password.html', form=form)
+
+@app.route('/submit', methods=['GET', 'POST'])
+@login_required
+def submit():
+    form = SubmitForm()
+    if form.validate_on_submit():
+        post = Post(code=form.code.data, author=current_user)
+        post.judge_code()
+        db.session.add(post) 
+        db.session.commit()
+        flash("Submit successfully, check below")
+        return redirect(url_for('user', username=current_user.username))
+    return render_template('submit.html', title='Submit', form=form)
+
+
+@app.route('/code/<codeid>')
+@login_required
+def code(codeid):
+    post = Post.query.get(int(codeid))
+    user = User.query.get(post.user_id)
+    if user.username != current_user.username:
+        abort(403)
+    
+    return render_template('code.html', title='Code', code=post.code, result=post.result)
+
+
+@app.route('/favicon.ico')
+def favicon():
+    return send_from_directory(os.path.join(app.root_path, 'static'),
+                               'favicon.ico', mimetype='image/vnd.microsoft.icon')
+

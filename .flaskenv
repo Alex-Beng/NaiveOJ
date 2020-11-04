@@ -1,2 +1,1 @@
 FLASK_APP=naiveoj.py
-FLASK_DEBUG=1
